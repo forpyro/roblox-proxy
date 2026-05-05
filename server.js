@@ -6,28 +6,148 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-async function fetchJson(url) {
+async function fetchJson(url, options = {}) {
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
+    const res = await fetch(url, {
+      method: options.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "RobloxProfileProxy/1.0"
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+
+    if (!res.ok) {
+      return {
+        error: true,
+        status: res.status,
+        url
+      };
+    }
+
     return await res.json();
-  } catch {
-    return null;
+  } catch (err) {
+    return {
+      error: true,
+      message: err.message,
+      url
+    };
   }
 }
 
-app.get("/profile/:userId", async (req, res) => {
-  const id = req.params.userId;
+app.get("/", (req, res) => {
+  res.send("Roblox profile proxy is running. Use /profile/USER_ID");
+});
 
-  const user = await fetchJson(`https://users.roblox.com/v1/users/${id}`);
-  const avatar = await fetchJson(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${id}&size=720x720&format=Png&isCircular=false`);
+app.get("/profile/:userId", async (req, res) => {
+  const userId = Number(req.params.userId);
+
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid userId" });
+  }
+
+  const [
+    user,
+    friends,
+    followers,
+    following,
+    avatar,
+    headshot,
+    wearing,
+    groups,
+    robloxBadges,
+    createdGames,
+    favoriteGames
+  ] = await Promise.all([
+    fetchJson(`https://users.roblox.com/v1/users/${userId}`),
+    fetchJson(`https://friends.roblox.com/v1/users/${userId}/friends/count`),
+    fetchJson(`https://friends.roblox.com/v1/users/${userId}/followers/count`),
+    fetchJson(`https://friends.roblox.com/v1/users/${userId}/followings/count`),
+    fetchJson(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=720x720&format=Png&isCircular=false`),
+    fetchJson(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`),
+    fetchJson(`https://avatar.roblox.com/v1/users/${userId}/currently-wearing`),
+    fetchJson(`https://groups.roblox.com/v2/users/${userId}/groups/roles`),
+    fetchJson(`https://accountinformation.roblox.com/v1/users/${userId}/roblox-badges`),
+    fetchJson(`https://games.roblox.com/v2/users/${userId}/games?accessFilter=Public&limit=10&sortOrder=Asc`),
+    fetchJson(`https://games.roblox.com/v2/users/${userId}/favorite/games?accessFilter=Public&limit=10&sortOrder=Asc`)
+  ]);
+
+  let presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
+    method: "POST",
+    body: {
+      userIds: [userId]
+    }
+  });
+
+  let itemThumbnails = null;
+
+  if (wearing && wearing.assetIds && wearing.assetIds.length > 0) {
+    const ids = wearing.assetIds.slice(0, 20).join(",");
+    itemThumbnails = await fetchJson(
+      `https://thumbnails.roblox.com/v1/assets?assetIds=${ids}&size=420x420&format=Png&isCircular=false`
+    );
+  }
+
+  let createdGameThumbnails = null;
+
+  if (createdGames && createdGames.data && createdGames.data.length > 0) {
+    const universeIds = createdGames.data
+      .map(game => game.id)
+      .filter(Boolean)
+      .slice(0, 10)
+      .join(",");
+
+    if (universeIds.length > 0) {
+      createdGameThumbnails = await fetchJson(
+        `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds}&size=512x512&format=Png&isCircular=false`
+      );
+    }
+  }
+
+  let favoriteGameThumbnails = null;
+
+  if (favoriteGames && favoriteGames.data && favoriteGames.data.length > 0) {
+    const universeIds = favoriteGames.data
+      .map(game => game.id)
+      .filter(Boolean)
+      .slice(0, 10)
+      .join(",");
+
+    if (universeIds.length > 0) {
+      favoriteGameThumbnails = await fetchJson(
+        `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds}&size=512x512&format=Png&isCircular=false`
+      );
+    }
+  }
 
   res.json({
+    userId,
     user,
-    avatar
+    counts: {
+      friends,
+      followers,
+      following
+    },
+    thumbnails: {
+      avatar,
+      headshot,
+      itemThumbnails,
+      createdGameThumbnails,
+      favoriteGameThumbnails
+    },
+    avatarData: {
+      wearing
+    },
+    groups,
+    robloxBadges,
+    games: {
+      createdGames,
+      favoriteGames
+    },
+    presence
   });
 });
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`Roblox profile proxy running on port ${PORT}`);
 });
