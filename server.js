@@ -55,7 +55,41 @@ app.get("/friends/:userId", async (req, res) => {
   if (!userId) return res.status(400).json({ error: "Invalid userId" });
 
   const friends = await fetchJson(`https://friends.roblox.com/v1/users/${userId}/friends`);
-  res.json(friends);
+
+  if (!friends || friends.error || !friends.data) {
+    return res.json(friends);
+  }
+
+  const ids = friends.data.map(f => f.id);
+
+  const userInfos = await fetchJson("https://users.roblox.com/v1/users", {
+    method: "POST",
+    body: {
+      userIds: ids,
+      excludeBannedUsers: false
+    }
+  });
+
+  const infoMap = {};
+
+  if (userInfos && userInfos.data) {
+    for (const u of userInfos.data) {
+      infoMap[u.id] = u;
+    }
+  }
+
+  const fixedFriends = friends.data.map(f => {
+    const info = infoMap[f.id] || {};
+    return {
+      id: f.id,
+      name: info.name || f.name || "Unknown",
+      displayName: info.displayName || f.displayName || info.name || f.name || "Unknown"
+    };
+  });
+
+  res.json({
+    data: fixedFriends
+  });
 });
 
 app.get("/profile/:userId", async (req, res) => {
