@@ -13,7 +13,7 @@ async function fetchJson(url, options = {}) {
       method: options.method || "GET",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "RobloxProfileProxy/1.0"
+        "User-Agent": "RobloxPublicProfileViewer/1.0"
       },
       body: options.body ? JSON.stringify(options.body) : undefined
     });
@@ -29,7 +29,7 @@ async function fetchJson(url, options = {}) {
 }
 
 app.get("/", (req, res) => {
-  res.send("Roblox proxy running.");
+  res.send("Roblox public profile viewer proxy is running.");
 });
 
 app.get("/username/:username", async (req, res) => {
@@ -43,7 +43,7 @@ app.get("/username/:username", async (req, res) => {
     }
   });
 
-  if (!result || !result.data || !result.data[0]) {
+  if (!result || result.error || !result.data || !result.data[0]) {
     return res.json({ error: true, message: "User not found" });
   }
 
@@ -88,7 +88,7 @@ app.get("/profile/:userId", async (req, res) => {
     fetchJson(`https://games.roblox.com/v2/users/${userId}/favorite/games?accessFilter=Public&limit=10&sortOrder=Asc`)
   ]);
 
-  const presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
+  let presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
     method: "POST",
     body: { userIds: [userId] }
   });
@@ -116,5 +116,5 @@ app.get("/profile/:userId", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Roblox proxy running on port ${PORT}`);
+  console.log(`Proxy running on port ${PORT}`);
 });
