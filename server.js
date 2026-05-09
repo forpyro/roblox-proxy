@@ -3,6 +3,7 @@ const cors = require("cors");
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
@@ -18,47 +19,48 @@ async function fetchJson(url, options = {}) {
     });
 
     if (!res.ok) {
-      return {
-        error: true,
-        status: res.status,
-        url
-      };
+      return { error: true, status: res.status, url };
     }
 
     return await res.json();
   } catch (err) {
-    return {
-      error: true,
-      message: err.message,
-      url
-    };
+    return { error: true, message: err.message, url };
   }
 }
 
 app.get("/", (req, res) => {
-  res.send("Roblox profile proxy is running. Use /profile/USER_ID or /friends/USER_ID");
+  res.send("Roblox proxy running.");
+});
+
+app.get("/username/:username", async (req, res) => {
+  const username = req.params.username;
+
+  const result = await fetchJson("https://users.roblox.com/v1/usernames/users", {
+    method: "POST",
+    body: {
+      usernames: [username],
+      excludeBannedUsers: false
+    }
+  });
+
+  if (!result || !result.data || !result.data[0]) {
+    return res.json({ error: true, message: "User not found" });
+  }
+
+  res.json(result.data[0]);
 });
 
 app.get("/friends/:userId", async (req, res) => {
   const userId = Number(req.params.userId);
+  if (!userId) return res.status(400).json({ error: "Invalid userId" });
 
-  if (!userId) {
-    return res.status(400).json({ error: "Invalid userId" });
-  }
-
-  const friends = await fetchJson(
-    `https://friends.roblox.com/v1/users/${userId}/friends`
-  );
-
+  const friends = await fetchJson(`https://friends.roblox.com/v1/users/${userId}/friends`);
   res.json(friends);
 });
 
 app.get("/profile/:userId", async (req, res) => {
   const userId = Number(req.params.userId);
-
-  if (!userId) {
-    return res.status(400).json({ error: "Invalid userId" });
-  }
+  if (!userId) return res.status(400).json({ error: "Invalid userId" });
 
   const [
     user,
@@ -88,9 +90,7 @@ app.get("/profile/:userId", async (req, res) => {
 
   const presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
     method: "POST",
-    body: {
-      userIds: [userId]
-    }
+    body: { userIds: [userId] }
   });
 
   let itemThumbnails = null;
@@ -102,66 +102,19 @@ app.get("/profile/:userId", async (req, res) => {
     );
   }
 
-  let createdGameThumbnails = null;
-
-  if (createdGames && createdGames.data && createdGames.data.length > 0) {
-    const universeIds = createdGames.data
-      .map(game => game.id)
-      .filter(Boolean)
-      .slice(0, 10)
-      .join(",");
-
-    if (universeIds.length > 0) {
-      createdGameThumbnails = await fetchJson(
-        `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds}&size=512x512&format=Png&isCircular=false`
-      );
-    }
-  }
-
-  let favoriteGameThumbnails = null;
-
-  if (favoriteGames && favoriteGames.data && favoriteGames.data.length > 0) {
-    const universeIds = favoriteGames.data
-      .map(game => game.id)
-      .filter(Boolean)
-      .slice(0, 10)
-      .join(",");
-
-    if (universeIds.length > 0) {
-      favoriteGameThumbnails = await fetchJson(
-        `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds}&size=512x512&format=Png&isCircular=false`
-      );
-    }
-  }
-
   res.json({
     userId,
     user,
-    counts: {
-      friends,
-      followers,
-      following
-    },
-    thumbnails: {
-      avatar,
-      headshot,
-      itemThumbnails,
-      createdGameThumbnails,
-      favoriteGameThumbnails
-    },
-    avatarData: {
-      wearing
-    },
+    counts: { friends, followers, following },
+    thumbnails: { avatar, headshot, itemThumbnails },
+    avatarData: { wearing },
     groups,
     robloxBadges,
-    games: {
-      createdGames,
-      favoriteGames
-    },
+    games: { createdGames, favoriteGames },
     presence
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`Roblox profile proxy running on port ${PORT}`);
+  console.log(`Roblox proxy running on port ${PORT}`);
 });
