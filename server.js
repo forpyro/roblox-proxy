@@ -36,7 +36,21 @@ async function fetchJson(url, options = {}) {
 }
 
 app.get("/", (req, res) => {
-  res.send("Roblox profile proxy is running. Use /profile/USER_ID");
+  res.send("Roblox profile proxy is running. Use /profile/USER_ID or /friends/USER_ID");
+});
+
+app.get("/friends/:userId", async (req, res) => {
+  const userId = Number(req.params.userId);
+
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid userId" });
+  }
+
+  const friends = await fetchJson(
+    `https://friends.roblox.com/v1/users/${userId}/friends`
+  );
+
+  res.json(friends);
 });
 
 app.get("/profile/:userId", async (req, res) => {
@@ -72,7 +86,7 @@ app.get("/profile/:userId", async (req, res) => {
     fetchJson(`https://games.roblox.com/v2/users/${userId}/favorite/games?accessFilter=Public&limit=10&sortOrder=Asc`)
   ]);
 
-  let presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
+  const presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
     method: "POST",
     body: {
       userIds: [userId]
@@ -150,19 +164,4 @@ app.get("/profile/:userId", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Roblox profile proxy running on port ${PORT}`);
-});
-
-
-app.get("/friends/:userId", async (req, res) => {
-  const userId = Number(req.params.userId);
-
-  if (!userId) {
-    return res.status(400).json({ error: "Invalid userId" });
-  }
-
-  const friends = await fetchJson(
-    `https://friends.roblox.com/v1/users/${userId}/friends`
-  );
-
-  res.json(friends);
 });
