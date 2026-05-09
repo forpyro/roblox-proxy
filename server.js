@@ -151,3 +151,18 @@ app.get("/profile/:userId", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Roblox profile proxy running on port ${PORT}`);
 });
+
+
+app.get("/friends/:userId", async (req, res) => {
+  const userId = Number(req.params.userId);
+
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid userId" });
+  }
+
+  const friends = await fetchJson(
+    `https://friends.roblox.com/v1/users/${userId}/friends`
+  );
+
+  res.json(friends);
+});
