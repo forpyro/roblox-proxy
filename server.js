@@ -87,9 +87,7 @@ app.get("/friends/:userId", async (req, res) => {
     };
   });
 
-  res.json({
-    data: fixedFriends
-  });
+  res.json({ data: fixedFriends });
 });
 
 app.get("/profile/:userId", async (req, res) => {
@@ -122,7 +120,7 @@ app.get("/profile/:userId", async (req, res) => {
     fetchJson(`https://games.roblox.com/v2/users/${userId}/favorite/games?accessFilter=Public&limit=10&sortOrder=Asc`)
   ]);
 
-  let presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
+  const presence = await fetchJson("https://presence.roblox.com/v1/presence/users", {
     method: "POST",
     body: { userIds: [userId] }
   });
@@ -130,7 +128,7 @@ app.get("/profile/:userId", async (req, res) => {
   let itemThumbnails = null;
 
   if (wearing && wearing.assetIds && wearing.assetIds.length > 0) {
-    const ids = wearing.assetIds.slice(0, 20).join(",");
+    const ids = wearing.assetIds.slice(0, 40).join(",");
     itemThumbnails = await fetchJson(
       `https://thumbnails.roblox.com/v1/assets?assetIds=${ids}&size=420x420&format=Png&isCircular=false`
     );
@@ -147,6 +145,28 @@ app.get("/profile/:userId", async (req, res) => {
     games: { createdGames, favoriteGames },
     presence
   });
+});
+
+app.get("/outfits/:userId", async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!userId) return res.status(400).json({ error: "Invalid userId" });
+
+  const outfits = await fetchJson(
+    `https://avatar.roblox.com/v1/users/${userId}/outfits?itemsPerPage=100&page=1`
+  );
+
+  res.json(outfits);
+});
+
+app.get("/outfit/:outfitId", async (req, res) => {
+  const outfitId = Number(req.params.outfitId);
+  if (!outfitId) return res.status(400).json({ error: "Invalid outfitId" });
+
+  const outfit = await fetchJson(
+    `https://avatar.roblox.com/v1/outfits/${outfitId}/details`
+  );
+
+  res.json(outfit);
 });
 
 app.listen(PORT, () => {
