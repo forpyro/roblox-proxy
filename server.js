@@ -57,7 +57,7 @@ app.get("/friends/:userId", async (req, res) => {
   const friends = await fetchJson(`https://friends.roblox.com/v1/users/${userId}/friends`);
 
   if (!friends || friends.error || !friends.data) {
-    return res.json(friends);
+    return res.json({ data: [] });
   }
 
   const ids = friends.data.map(f => f.id);
@@ -147,17 +147,30 @@ app.get("/profile/:userId", async (req, res) => {
   });
 });
 
+// FIXED: uses v2 endpoint, normalizes response to always return { data: [...] }
 app.get("/outfits/:userId", async (req, res) => {
   const userId = Number(req.params.userId);
   if (!userId) return res.status(400).json({ error: "Invalid userId" });
 
   const outfits = await fetchJson(
-    `https://avatar.roblox.com/v1/users/${userId}/outfits?itemsPerPage=100&page=1`
+    `https://avatar.roblox.com/v2/outfits/search?userId=${userId}&itemsPerPage=50&page=1`
   );
 
-  res.json(outfits);
+  // Normalize: always return { data: [...] }
+  if (!outfits || outfits.error || !outfits.data) {
+    return res.json({ data: [] });
+  }
+
+  const normalized = outfits.data.map(o => ({
+    id: o.id,
+    name: o.name,
+    isEditable: o.isEditable
+  }));
+
+  res.json({ data: normalized });
 });
 
+// FIXED: normalize outfit details to always return { assets: [...] }
 app.get("/outfit/:outfitId", async (req, res) => {
   const outfitId = Number(req.params.outfitId);
   if (!outfitId) return res.status(400).json({ error: "Invalid outfitId" });
@@ -166,7 +179,18 @@ app.get("/outfit/:outfitId", async (req, res) => {
     `https://avatar.roblox.com/v1/outfits/${outfitId}/details`
   );
 
-  res.json(outfit);
+  if (!outfit || outfit.error) {
+    return res.json({ assets: [] });
+  }
+
+  // Normalize assets array
+  const assets = (outfit.assets || []).map(a => ({
+    id: a.id,
+    name: a.name,
+    assetType: a.assetType && a.assetType.name
+  }));
+
+  res.json({ ...outfit, assets });
 });
 
 app.listen(PORT, () => {
